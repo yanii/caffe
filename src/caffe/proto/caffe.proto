@@ -355,6 +355,14 @@ message TransformationParameter {
   optional uint32 min_size = 6;
   // Specify maximum size of images before crop (used for scale agumentation).
   optional uint32 max_size = 7;
+  // For relighting augmentation we need both the eigenvectors and eigenvalues.
+  // Unless both are defined, relighting augmentation will be disabled.
+  // the eigen values of the components, same as number of channels.
+  repeated float eigen_value = 8;
+  // the eigen vectors of the components, there should be channels*channels elements.
+  repeated float eigen_vector_component = 9;
+  // filler for re-lighting random variable
+  optional FillerParameter relight_filler = 10;
 }
 
 // Message that stores parameters shared by loss layers
