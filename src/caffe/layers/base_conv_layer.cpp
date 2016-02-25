@@ -339,10 +339,10 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
     }
     col_buff = col_buffer_.gpu_data();
   }
-  if (group_ > 1){ //&& kernel_dim_*conv_out_spatial_dim_*conv_out_channels_/ (group_*32*32) < 2000){
-    const Dtype **weights_array = (const Dtype **) weights_array_->cpu_data();
-    const Dtype **col_array = (const Dtype **) col_array_->cpu_data();
-    Dtype **output_array = (Dtype **) output_array_->cpu_data();
+  if (group_ > 1){
+    const Dtype **weights_array = reinterpret_cast<const Dtype **>(weights_array_->mutable_cpu_data());
+    const Dtype **col_array = reinterpret_cast<const Dtype **>(col_array_->mutable_cpu_data());
+    Dtype **output_array = reinterpret_cast<Dtype **>(output_array_->mutable_cpu_data());
     for (int g = 0; g < group_; g++){
       weights_array[g] = weights + weight_offset_*g;
       col_array[g] = col_buff + col_offset_*g;
@@ -378,9 +378,9 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
     col_buff = input;
   }
   if (group_ > 1){ //&& kernel_dim_*conv_out_spatial_dim_*conv_out_channels_/ (group_*32*32) < 2000){
-    const Dtype **weights_array = (const Dtype **) weights_array_->cpu_data();
-    const Dtype **output_array = (const Dtype **) output_array_->cpu_data();
-    Dtype **col_array = (Dtype **) col_array_->cpu_data();
+    const Dtype **weights_array = reinterpret_cast<const Dtype **>(weights_array_->mutable_cpu_data());
+    const Dtype **output_array = reinterpret_cast<const Dtype **>(output_array_->mutable_cpu_data());
+    Dtype **col_array = reinterpret_cast<Dtype **>(col_array_->mutable_cpu_data());
     for (int g = 0; g < group_; g++){
       weights_array[g] = weights + weight_offset_*g;
       col_array[g] = col_buff + col_offset_*g;
@@ -411,10 +411,10 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
     conv_im2col_gpu(input, col_buffer_.mutable_gpu_data());
     col_buff = col_buffer_.gpu_data();
   }
-  if (group_ > 1){ //&& kernel_dim_*conv_out_spatial_dim_*conv_out_channels_/ (group_*32*32) < 2000){
-    const Dtype **col_array = (const Dtype **) col_array_->cpu_data();
-    const Dtype **output_array = (const Dtype **) output_array_->cpu_data();
-    Dtype **weights_array = (Dtype **) weights_array_->cpu_data();
+  if (group_ > 1){
+    const Dtype **col_array = reinterpret_cast<const Dtype **>(col_array_->mutable_cpu_data());
+    const Dtype **output_array = reinterpret_cast<const Dtype **>(output_array_->mutable_cpu_data());
+    Dtype **weights_array = reinterpret_cast<Dtype **>(weights_array_->mutable_cpu_data());
     for (int g = 0; g < group_; g++){
       weights_array[g] = weights + weight_offset_*g;
       col_array[g] = col_buff + col_offset_*g;
