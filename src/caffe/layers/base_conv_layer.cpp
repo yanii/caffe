@@ -178,6 +178,13 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   }
   kernel_dim_ = this->blobs_[0]->count(1);
   weight_offset_ = conv_out_channels_ * kernel_dim_ / group_;
+
+#ifndef CPU_ONLY
+  weights_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
+  col_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
+  output_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
+#endif
+
   // Propagate gradients to the parameters (as directed by backward pass).
   this->param_propagate_down_.resize(this->blobs_.size(), true);
 }
@@ -332,11 +339,26 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
     }
     col_buff = col_buffer_.gpu_data();
   }
-  for (int g = 0; g < group_; ++g) {
-    caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
-        group_, conv_out_spatial_dim_, kernel_dim_,
-        (Dtype)1., weights + weight_offset_ * g, col_buff + col_offset_ * g,
-        (Dtype)0., output + output_offset_ * g);
+  if (group_ > 1){ //&& kernel_dim_*conv_out_spatial_dim_*conv_out_channels_/ (group_*32*32) < 2000){
+    const Dtype **weights_array = (const Dtype **) weights_array_->cpu_data();
+    const Dtype **col_array = (const Dtype **) col_array_->cpu_data();
+    Dtype **output_array = (Dtype **) output_array_->cpu_data();
+    for (int g = 0; g < group_; g++){
+      weights_array[g] = weights + weight_offset_*g;
+      col_array[g] = col_buff + col_offset_*g;
+      output_array[g] = output + output_offset_*g;
+    }
+    caffe_gpu_gemm_batched<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
+            group_, conv_out_spatial_dim_, kernel_dim_,
+            (Dtype)1., (const Dtype **) weights_array_->gpu_data(), (const Dtype **) col_array_->gpu_data(),
+            (Dtype)0., (Dtype **) output_array_->gpu_data(), group_);
+  } else {
+    for (int g = 0; g < group_; ++g) {
+      caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
+          group_, conv_out_spatial_dim_, kernel_dim_,
+          (Dtype)1., weights + weight_offset_ * g, col_buff + col_offset_ * g,
+          (Dtype)0., output + output_offset_ * g);
+    }
   }
 }
 
@@ -355,11 +377,26 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
   if (is_1x1_) {
     col_buff = input;
   }
-  for (int g = 0; g < group_; ++g) {
-    caffe_gpu_gemm<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
-        conv_out_spatial_dim_, conv_out_channels_ / group_,
-        (Dtype)1., weights + weight_offset_ * g, output + output_offset_ * g,
-        (Dtype)0., col_buff + col_offset_ * g);
+  if (group_ > 1){ //&& kernel_dim_*conv_out_spatial_dim_*conv_out_channels_/ (group_*32*32) < 2000){
+    const Dtype **weights_array = (const Dtype **) weights_array_->cpu_data();
+    const Dtype **output_array = (const Dtype **) output_array_->cpu_data();
+    Dtype **col_array = (Dtype **) col_array_->cpu_data();
+    for (int g = 0; g < group_; g++){
+      weights_array[g] = weights + weight_offset_*g;
+      col_array[g] = col_buff + col_offset_*g;
+      output_array[g] = output + output_offset_*g;
+    }
+    caffe_gpu_gemm_batched<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
+            conv_out_spatial_dim_, conv_out_channels_ / group_,
+            (Dtype)1., (const Dtype **) weights_array_->gpu_data(), (const Dtype **) output_array_->gpu_data(),
+            (Dtype)0., (Dtype **) col_array_->gpu_data(), group_);
+  } else {
+    for (int g = 0; g < group_; ++g) {
+      caffe_gpu_gemm<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
+          conv_out_spatial_dim_, conv_out_channels_ / group_,
+          (Dtype)1., weights + weight_offset_ * g, output + output_offset_ * g,
+          (Dtype)0., col_buff + col_offset_ * g);
+    }
   }
   if (!is_1x1_) {
     conv_col2im_gpu(col_buff, input);
@@ -374,11 +411,26 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
     conv_im2col_gpu(input, col_buffer_.mutable_gpu_data());
     col_buff = col_buffer_.gpu_data();
   }
-  for (int g = 0; g < group_; ++g) {
-    caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
-        kernel_dim_, conv_out_spatial_dim_,
-        (Dtype)1., output + output_offset_ * g, col_buff + col_offset_ * g,
-        (Dtype)1., weights + weight_offset_ * g);
+  if (group_ > 1){ //&& kernel_dim_*conv_out_spatial_dim_*conv_out_channels_/ (group_*32*32) < 2000){
+    const Dtype **col_array = (const Dtype **) col_array_->cpu_data();
+    const Dtype **output_array = (const Dtype **) output_array_->cpu_data();
+    Dtype **weights_array = (Dtype **) weights_array_->cpu_data();
+    for (int g = 0; g < group_; g++){
+      weights_array[g] = weights + weight_offset_*g;
+      col_array[g] = col_buff + col_offset_*g;
+      output_array[g] = output + output_offset_*g;
+    }
+    caffe_gpu_gemm_batched<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
+            kernel_dim_, conv_out_spatial_dim_,
+            (Dtype)1., (const Dtype **) output_array_->gpu_data(), (const Dtype **) col_array_->gpu_data(),
+            (Dtype)1., (Dtype **) weights_array_->gpu_data(), group_);
+  } else {
+    for (int g = 0; g < group_; ++g) {
+      caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
+          kernel_dim_, conv_out_spatial_dim_,
+          (Dtype)1., output + output_offset_ * g, col_buff + col_offset_ * g,
+          (Dtype)1., weights + weight_offset_ * g);
+    }
   }
 }
 

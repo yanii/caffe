@@ -167,6 +167,12 @@ class BaseConvolutionLayer : public Layer<Dtype> {
 
   Blob<Dtype> col_buffer_;
   Blob<Dtype> bias_multiplier_;
+
+#ifndef CPU_ONLY
+  shared_ptr<SyncedMemory> weights_array_;
+  shared_ptr<SyncedMemory> col_array_;
+  shared_ptr<SyncedMemory> output_array_;
+#endif
 };
 
 }  // namespace caffe
