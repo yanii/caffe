@@ -23,6 +23,7 @@ class BaseConvolutionLayer : public Layer<Dtype> {
       const vector<Blob<Dtype>*>& top);
   virtual void Reshape(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
+  virtual ~BaseConvolutionLayer();
 
   virtual inline int MinBottomBlobs() const { return 1; }
   virtual inline int MinTopBlobs() const { return 1; }
@@ -169,6 +170,7 @@ class BaseConvolutionLayer : public Layer<Dtype> {
   Blob<Dtype> bias_multiplier_;
 
 #ifndef CPU_ONLY
+  cudaStream_t*  stream_;
   shared_ptr<SyncedMemory> weights_array_;
   shared_ptr<SyncedMemory> col_array_;
   shared_ptr<SyncedMemory> output_array_;
