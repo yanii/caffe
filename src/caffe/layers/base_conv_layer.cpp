@@ -185,6 +185,13 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   weights_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
   col_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
   output_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
+
+  // Initialize CUDA streams and cuDNN.
+  stream_= new cudaStream_t[this->group_];
+
+  for (int g = 0; g < this->group_; g++) {
+    CUDA_CHECK(cudaStreamCreate(&stream_[g]));
+  }
 #endif
 
   // Propagate gradients to the parameters (as directed by backward pass).
@@ -195,7 +202,7 @@ template <typename Dtype>
 BaseConvolutionLayer<Dtype>::~BaseConvolutionLayer(){
 #ifndef CPU_ONLY
   for (int g = 0; g < this->group_; g++) {
-	cudaStreamDestroy(stream_[g]);
+    cudaStreamDestroy(stream_[g]);
   }
 
   delete [] stream_;
@@ -271,14 +278,6 @@ void BaseConvolutionLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
     caffe_set(bias_multiplier_.count(), Dtype(1),
         bias_multiplier_.mutable_cpu_data());
   }
-#ifndef CPU_ONLY
-  // Initialize CUDA streams and cuDNN.
-  stream_= new cudaStream_t[this->group_];
-
-  for (int g = 0; g < this->group_; g++) {
-    CUDA_CHECK(cudaStreamCreate(&stream_[g]));
-  }
-#endif
 }
 
 template <typename Dtype>
@@ -386,7 +385,7 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
           (Dtype)0., output + output_offset_ * g);
     }
     for (int g = 0; g < group_; ++g) {
-      cudaStreamSynchronize(stream_[g]);
+      CUDA_CHECK(cudaStreamSynchronize(stream_[g]));
     }
   }
 }
@@ -432,7 +431,7 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
           (Dtype)0., col_buff + col_offset_ * g);
     }
     for (int g = 0; g < group_; ++g) {
-      cudaStreamSynchronize(stream_[g]);
+      CUDA_CHECK(cudaStreamSynchronize(stream_[g]));
     }
   }
   if (!is_1x1_) {
@@ -474,7 +473,7 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
           (Dtype)1., weights + weight_offset_ * g);
     }
     for (int g = 0; g < group_; ++g) {
-      cudaStreamSynchronize(stream_[g]);
+      CUDA_CHECK(cudaStreamSynchronize(stream_[g]));
     }
   }
 }
