@@ -195,7 +195,7 @@ __global__ void batch_grouparraysetup_kernel<float>(
     const float *B, const int Boffset, const float **Barray,
     float *C, const int Coffset, float **Carray,
     int groups) {
-  for (int g = 0; g < groups; g++){
+  CUDA_KERNEL_LOOP(g, groups) {
     Aarray[g] = A + Aoffset*g;
     Barray[g] = B + Boffset*g;
     Carray[g] = C + Coffset*g;
@@ -208,7 +208,7 @@ __global__ void batch_grouparraysetup_kernel<double>(
     const double *B, const int Boffset, const double **Barray,
     double *C, const int Coffset, double **Carray,
     int groups) {
-  for (int g = 0; g < groups; g++){
+  CUDA_KERNEL_LOOP(g, groups) {
     Aarray[g] = A + Aoffset*g;
     Barray[g] = B + Boffset*g;
     Carray[g] = C + Coffset*g;
@@ -233,7 +233,7 @@ void caffe_gpu_gemm_grouped<float>(const CBLAS_TRANSPOSE TransA,
       (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
 
   // NOLINT_NEXT_LINE(whitespace/operators)
-  batch_grouparraysetup_kernel<float><<<1, 1>>>(
+  batch_grouparraysetup_kernel<float><<<CAFFE_GET_BLOCKS(groups), CAFFE_CUDA_NUM_THREADS>>>(
       B, Boffset, Barray,
       A, Aoffset, Aarray,
       C, Coffset, Carray,
@@ -261,7 +261,7 @@ void caffe_gpu_gemm_grouped<double>(const CBLAS_TRANSPOSE TransA,
       (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
 
   // NOLINT_NEXT_LINE(whitespace/operators)
-  batch_grouparraysetup_kernel<double><<<1, 1>>>(
+  batch_grouparraysetup_kernel<double><<<CAFFE_GET_BLOCKS(groups), CAFFE_CUDA_NUM_THREADS>>>(
         B, Boffset, Barray,
         A, Aoffset, Aarray,
         C, Coffset, Carray,
