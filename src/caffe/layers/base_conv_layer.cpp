@@ -6,8 +6,6 @@
 #include "caffe/util/im2col.hpp"
 #include "caffe/util/math_functions.hpp"
 
-#define CUBLAS_GROUPBATCH_THRESHOLD (100*100)
-
 namespace caffe {
 
 template <typename Dtype>
@@ -185,31 +183,10 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   weights_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
   col_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
   output_array_.reset(new SyncedMemory(group_ * sizeof(Dtype *)));
-
-  // Initialize CUDA streams and cuDNN.
-  stream_= new cudaStream_t[this->group_];
-
-  for (int g = 0; g < this->group_; g++) {
-    CUDA_CHECK(cudaStreamCreate(&stream_[g]));
-  }
-  stream_setup_ = true;
 #endif
 
   // Propagate gradients to the parameters (as directed by backward pass).
   this->param_propagate_down_.resize(this->blobs_.size(), true);
-}
-
-template <typename Dtype>
-BaseConvolutionLayer<Dtype>::~BaseConvolutionLayer(){
-#ifndef CPU_ONLY
-  // Check that streams have been setup before destroying.
-  if (!stream_setup_) { return; }
-  for (int g = 0; g < this->group_; g++) {
-    CUDA_CHECK(cudaStreamDestroy(stream_[g]));
-  }
-
-  delete [] stream_;
-#endif
 }
 
 template <typename Dtype>
@@ -366,7 +343,7 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
         group_, conv_out_spatial_dim_, kernel_dim_,
         (Dtype)1., weights, col_buff, (Dtype)0., output);
-  } else if (conv_out_spatial_dim_*conv_out_channels_/ group_ <= CUBLAS_GROUPBATCH_THRESHOLD ){
+  } else {
     const Dtype **weights_array = reinterpret_cast<const Dtype **>(weights_array_->mutable_cpu_data());
     const Dtype **col_array = reinterpret_cast<const Dtype **>(col_array_->mutable_cpu_data());
     Dtype **output_array = reinterpret_cast<Dtype **>(output_array_->mutable_cpu_data());
@@ -379,17 +356,6 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
         group_, conv_out_spatial_dim_, kernel_dim_,
         (Dtype)1., (const Dtype **) weights_array_->gpu_data(), (const Dtype **) col_array_->gpu_data(),
         (Dtype)0., (Dtype **) output_array_->gpu_data(), group_);
-  } else {
-    for (int g = 0; g < group_; ++g) {
-      CUBLAS_CHECK(cublasSetStream(Caffe::cublas_handle(), stream_[g]));
-      caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
-          group_, conv_out_spatial_dim_, kernel_dim_,
-          (Dtype)1., weights + weight_offset_ * g, col_buff + col_offset_ * g,
-          (Dtype)0., output + output_offset_ * g);
-    }
-    for (int g = 0; g < group_; ++g) {
-      CUDA_CHECK(cudaStreamSynchronize(stream_[g]));
-    }
   }
 }
 
@@ -412,7 +378,7 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
     caffe_gpu_gemm<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
         conv_out_spatial_dim_, conv_out_channels_ / group_,
         (Dtype)1., weights, output, (Dtype)0., col_buff);
-  } else if (kernel_dim_*conv_out_spatial_dim_ <= CUBLAS_GROUPBATCH_THRESHOLD) {
+  } else {
     const Dtype **weights_array = reinterpret_cast<const Dtype **>(weights_array_->mutable_cpu_data());
     const Dtype **output_array = reinterpret_cast<const Dtype **>(output_array_->mutable_cpu_data());
     Dtype **col_array = reinterpret_cast<Dtype **>(col_array_->mutable_cpu_data());
@@ -425,17 +391,6 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
         conv_out_spatial_dim_, conv_out_channels_ / group_,
         (Dtype)1., (const Dtype **) weights_array_->gpu_data(), (const Dtype **) output_array_->gpu_data(),
         (Dtype)0., (Dtype **) col_array_->gpu_data(), group_);
-  } else {
-    for (int g = 0; g < group_; ++g) {
-      CUBLAS_CHECK(cublasSetStream(Caffe::cublas_handle(), stream_[g]));
-      caffe_gpu_gemm<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
-          conv_out_spatial_dim_, conv_out_channels_ / group_,
-          (Dtype)1., weights + weight_offset_ * g, output + output_offset_ * g,
-          (Dtype)0., col_buff + col_offset_ * g);
-    }
-    for (int g = 0; g < group_; ++g) {
-      CUDA_CHECK(cudaStreamSynchronize(stream_[g]));
-    }
   }
   if (!is_1x1_) {
     conv_col2im_gpu(col_buff, input);
@@ -454,7 +409,7 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
     caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
           kernel_dim_, conv_out_spatial_dim_,
           (Dtype)1., output, col_buff, (Dtype)1., weights);
-  } else if (kernel_dim_*conv_out_channels_/ group_ <= CUBLAS_GROUPBATCH_THRESHOLD) {
+  } else {
     const Dtype **col_array = reinterpret_cast<const Dtype **>(col_array_->mutable_cpu_data());
     const Dtype **output_array = reinterpret_cast<const Dtype **>(output_array_->mutable_cpu_data());
     Dtype **weights_array = reinterpret_cast<Dtype **>(weights_array_->mutable_cpu_data());
@@ -467,17 +422,6 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
             kernel_dim_, conv_out_spatial_dim_,
             (Dtype)1., (const Dtype **) output_array_->gpu_data(), (const Dtype **) col_array_->gpu_data(),
             (Dtype)1., (Dtype **) weights_array_->gpu_data(), group_);
-  } else {
-    for (int g = 0; g < group_; ++g) {
-      CUBLAS_CHECK(cublasSetStream(Caffe::cublas_handle(), stream_[g]));
-      caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
-          kernel_dim_, conv_out_spatial_dim_,
-          (Dtype)1., output + output_offset_ * g, col_buff + col_offset_ * g,
-          (Dtype)1., weights + weight_offset_ * g);
-    }
-    for (int g = 0; g < group_; ++g) {
-      CUDA_CHECK(cudaStreamSynchronize(stream_[g]));
-    }
   }
 }
 
