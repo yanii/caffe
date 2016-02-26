@@ -341,7 +341,7 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
     }
     col_buff = col_buffer_.gpu_data();
   }
-  if (group_ == 1 || conv_out_spatial_dim_ * conv_out_channels_ / group_ <= CUBLAS_BATCHED_THRESHOLD) {
+  if (group_ == 1 || conv_out_spatial_dim_ * conv_out_channels_ / group_ >= CUBLAS_BATCHED_THRESHOLD) {
     for (int g = 0; g < group_; g++){
       caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
           group_, conv_out_spatial_dim_, kernel_dim_,
@@ -379,7 +379,7 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
   if (is_1x1_) {
     col_buff = input;
   }
-  if (group_ == 1 || kernel_dim_ * conv_out_spatial_dim_ <= CUBLAS_BATCHED_THRESHOLD) {
+  if (group_ == 1 || kernel_dim_ * conv_out_spatial_dim_ >= CUBLAS_BATCHED_THRESHOLD) {
     for (int g = 0; g < group_; g++){
       caffe_gpu_gemm<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
           conv_out_spatial_dim_, conv_out_channels_ / group_,
@@ -413,7 +413,7 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
     conv_im2col_gpu(input, col_buffer_.mutable_gpu_data());
     col_buff = col_buffer_.gpu_data();
   }
-  if (group_ == 1 || kernel_dim_ * conv_out_channels_ / group_ <= CUBLAS_BATCHED_THRESHOLD) {
+  if (group_ == 1 || kernel_dim_ * conv_out_channels_ / group_ >= CUBLAS_BATCHED_THRESHOLD) {
     for (int g = 0; g < group_; g++){
       caffe_gpu_gemm<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
           kernel_dim_, conv_out_spatial_dim_,
