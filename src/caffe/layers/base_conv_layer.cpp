@@ -192,6 +192,7 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
   for (int g = 0; g < this->group_; g++) {
     CUDA_CHECK(cudaStreamCreate(&stream_[g]));
   }
+  stream_setup_ = true;
 #endif
 
   // Propagate gradients to the parameters (as directed by backward pass).
@@ -201,8 +202,10 @@ void BaseConvolutionLayer<Dtype>::LayerSetUp(const vector<Blob<Dtype>*>& bottom,
 template <typename Dtype>
 BaseConvolutionLayer<Dtype>::~BaseConvolutionLayer(){
 #ifndef CPU_ONLY
+  // Check that streams have been setup before destroying.
+  if (!stream_setup_) { return; }
   for (int g = 0; g < this->group_; g++) {
-    cudaStreamDestroy(stream_[g]);
+    CUDA_CHECK(cudaStreamDestroy(stream_[g]));
   }
 
   delete [] stream_;
