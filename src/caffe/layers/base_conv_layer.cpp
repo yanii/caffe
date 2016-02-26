@@ -349,18 +349,14 @@ void BaseConvolutionLayer<Dtype>::forward_gpu_gemm(const Dtype* input,
           (Dtype)0., output + output_offset_*g);
     }
   } else {
-    const Dtype **weights_array = reinterpret_cast<const Dtype **>(weights_array_->mutable_cpu_data());
-    const Dtype **col_array = reinterpret_cast<const Dtype **>(col_array_->mutable_cpu_data());
-    Dtype **output_array = reinterpret_cast<Dtype **>(output_array_->mutable_cpu_data());
-    for (int g = 0; g < group_; g++){
-      weights_array[g] = weights + weight_offset_*g;
-      col_array[g] = col_buff + col_offset_*g;
-      output_array[g] = output + output_offset_*g;
-    }
-    caffe_gpu_gemm_batched<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
+    caffe_gpu_gemm_grouped<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ /
         group_, conv_out_spatial_dim_, kernel_dim_,
-        (Dtype)1., (const Dtype **) weights_array_->gpu_data(), (const Dtype **) col_array_->gpu_data(),
-        (Dtype)0., (Dtype **) output_array_->gpu_data(), group_);
+        (Dtype)1.,
+        weights, weight_offset_, (const Dtype **) weights_array_->mutable_gpu_data(),
+        col_buff, col_offset_, (const Dtype **) col_array_->mutable_gpu_data(),
+        (Dtype)0.,
+        output, output_offset_, (Dtype **) output_array_->mutable_gpu_data(),
+        group_);
   }
 }
 
@@ -387,18 +383,14 @@ void BaseConvolutionLayer<Dtype>::backward_gpu_gemm(const Dtype* output,
           (Dtype)0., col_buff + col_offset_*g);
     }
   } else {
-    const Dtype **weights_array = reinterpret_cast<const Dtype **>(weights_array_->mutable_cpu_data());
-    const Dtype **output_array = reinterpret_cast<const Dtype **>(output_array_->mutable_cpu_data());
-    Dtype **col_array = reinterpret_cast<Dtype **>(col_array_->mutable_cpu_data());
-    for (int g = 0; g < group_; g++){
-      weights_array[g] = weights + weight_offset_*g;
-      col_array[g] = col_buff + col_offset_*g;
-      output_array[g] = output + output_offset_*g;
-    }
-    caffe_gpu_gemm_batched<Dtype>(CblasTrans, CblasNoTrans, kernel_dim_,
+    caffe_gpu_gemm_grouped<Dtype>(CblasNoTrans, CblasNoTrans, kernel_dim_,
         conv_out_spatial_dim_, conv_out_channels_ / group_,
-        (Dtype)1., (const Dtype **) weights_array_->gpu_data(), (const Dtype **) output_array_->gpu_data(),
-        (Dtype)0., (Dtype **) col_array_->gpu_data(), group_);
+        (Dtype)1.,
+        weights, weight_offset_, (const Dtype **) weights_array_->mutable_gpu_data(),
+        output, output_offset_, (const Dtype **) output_array_->mutable_gpu_data(),
+        (Dtype)0.,
+        col_buff, col_offset_, (Dtype **) col_array_->mutable_gpu_data(),
+        group_);
   }
   if (!is_1x1_) {
     conv_col2im_gpu(col_buff, input);
@@ -421,18 +413,14 @@ void BaseConvolutionLayer<Dtype>::weight_gpu_gemm(const Dtype* input,
           (Dtype)1., weights + weight_offset_*g);
     }
   } else {
-    const Dtype **col_array = reinterpret_cast<const Dtype **>(col_array_->mutable_cpu_data());
-    const Dtype **output_array = reinterpret_cast<const Dtype **>(output_array_->mutable_cpu_data());
-    Dtype **weights_array = reinterpret_cast<Dtype **>(weights_array_->mutable_cpu_data());
-    for (int g = 0; g < group_; g++){
-      weights_array[g] = weights + weight_offset_*g;
-      col_array[g] = col_buff + col_offset_*g;
-      output_array[g] = output + output_offset_*g;
-    }
-    caffe_gpu_gemm_batched<Dtype>(CblasNoTrans, CblasTrans, conv_out_channels_ / group_,
-            kernel_dim_, conv_out_spatial_dim_,
-            (Dtype)1., (const Dtype **) output_array_->gpu_data(), (const Dtype **) col_array_->gpu_data(),
-            (Dtype)1., (Dtype **) weights_array_->gpu_data(), group_);
+    caffe_gpu_gemm_grouped<Dtype>(CblasNoTrans, CblasNoTrans, conv_out_channels_ / group_,
+        kernel_dim_, conv_out_spatial_dim_,
+        (Dtype)1.,
+        output, output_offset_, (const Dtype **) output_array_->mutable_gpu_data(),
+        col_buff, col_offset_, (const Dtype **) col_array_->mutable_gpu_data(),
+        (Dtype)0.,
+        weights, weight_offset_, (Dtype **) weights_array_->mutable_gpu_data(),
+        group_);
   }
 }
 

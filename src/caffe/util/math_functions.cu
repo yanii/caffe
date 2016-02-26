@@ -2,7 +2,7 @@
 #include <thrust/device_vector.h>
 #include <thrust/functional.h>  // thrust::plus
 #include <thrust/reduce.h>
-
+//#include <cublas_v2.h>
 #include <cmath>
 
 #include "caffe/common.hpp"
@@ -72,6 +72,203 @@ void caffe_gpu_gemm_batched<double>(const CBLAS_TRANSPOSE TransA,
       (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
   CUBLAS_CHECK(cublasDgemmBatched(Caffe::cublas_handle(), cuTransB, cuTransA,
       N, M, K, &alpha, B, ldb, A, lda, &beta, C, N, groups));
+}
+
+/*
+template <typename Dtype>
+__global__ void batch_groups_kernel(cublasHandle_t handle,
+    cublasOperation_t transa, cublasOperation_t transb,
+    const int m, const int n, const int k, const Dtype alpha,
+    const Dtype *A, const int Aoffset, const Dtype **Aarray, const int lda,
+    const Dtype *B, const int Boffset, const Dtype **Barray, const int ldb,
+    const Dtype beta, Dtype *C, const int Coffset, Dtype **Carray, const int ldc,
+    int groups);
+
+template <>
+__global__ void batch_groups_kernel<float>(cublasHandle_t handle,
+    cublasOperation_t transa, cublasOperation_t transb,
+    const int m, const int n, const int k, const float alpha,
+    const float *A, const int Aoffset, const float **Aarray, const int lda,
+    const float *B, const int Boffset, const float **Barray, const int ldb,
+    const float beta, float *C, const int Coffset, float **Carray, const int ldc,
+    int groups) {
+
+  for (int g = 0; g < groups; g++){
+    Aarray[g] = A + Aoffset*g;
+    Barray[g] = B + Boffset*g;
+    Carray[g] = C + Coffset*g;
+  }
+
+  cublasSgemmBatched(handle, transb, transa,
+        n, m, k, &alpha, Barray, ldb, Aarray, lda, &beta, Carray, ldc, groups);
+}
+
+template <>
+__global__ void batch_groups_kernel<double>(cublasHandle_t handle,
+    cublasOperation_t transa, cublasOperation_t transb,
+    const int m, const int n, const int k, const double alpha,
+    const double *A, const int Aoffset, const double **Aarray, const int lda,
+    const double *B, const int Boffset, const double **Barray, const int ldb,
+    const double beta, double *C, const int Coffset, double **Carray, const int ldc,
+    int groups) {
+
+  for (int g = 0; g < groups; g++){
+    Aarray[g] = A + Aoffset*g;
+    Barray[g] = B + Boffset*g;
+    Carray[g] = C + Coffset*g;
+  }
+
+  cublasDgemmBatched(handle, transb, transa,
+        n, m, k, &alpha, Barray, ldb, Aarray, lda, &beta, Carray, ldc, groups);
+}
+
+template <>
+void caffe_gpu_gemm_grouped<float>(const CBLAS_TRANSPOSE TransA,
+    const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
+    const float alpha,
+    const float* A, const int Aoffset, const float** Aarray,
+    const float* B, const int Boffset, const float** Barray,
+    const float beta,
+    float* C, const int Coffset, float** Carray,
+    const int groups) {
+  // Note that cublas follows fortran order.
+  int lda = (TransA == CblasNoTrans) ? K : M;
+  int ldb = (TransB == CblasNoTrans) ? N : K;
+  cublasOperation_t cuTransA =
+      (TransA == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+  cublasOperation_t cuTransB =
+      (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  batch_groups_kernel<float><<<1, 1>>>(
+      Caffe::cublas_handle(),
+      cuTransB, cuTransA,
+      N, M, K,
+      alpha,
+      B, Boffset, Barray, ldb,
+      A, Aoffset, Aarray, lda,
+      beta,
+      C, Coffset, Carray, N,
+      groups);
+}
+
+template <>
+void caffe_gpu_gemm_grouped<double>(const CBLAS_TRANSPOSE TransA,
+    const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
+    const double alpha,
+    const double* A, const int Aoffset, const double **Aarray,
+    const double* B, const int Boffset, const double **Barray,
+    const double beta,
+    double* C, const int Coffset, double **Carray,
+    const int groups) {
+  // Note that cublas follows fortran order.
+  int lda = (TransA == CblasNoTrans) ? K : M;
+  int ldb = (TransB == CblasNoTrans) ? N : K;
+  cublasOperation_t cuTransA =
+      (TransA == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+  cublasOperation_t cuTransB =
+      (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  batch_groups_kernel<double><<<1, 1>>>(
+      Caffe::cublas_handle(),
+      cuTransB, cuTransA,
+      N, M, K,
+      alpha,
+      B, Boffset, Barray, ldb,
+      A, Aoffset, Aarray, lda,
+      beta,
+      C, Coffset, Carray,
+      N, groups);
+}*/
+
+template <typename Dtype>
+__global__ void batch_grouparraysetup_kernel(
+    const Dtype *A, const int Aoffset, const Dtype **Aarray,
+    const Dtype *B, const int Boffset, const Dtype **Barray,
+    Dtype *C, const int Coffset, Dtype **Carray,
+    int groups);
+
+template <>
+__global__ void batch_grouparraysetup_kernel<float>(
+    const float *A, const int Aoffset, const float **Aarray,
+    const float *B, const int Boffset, const float **Barray,
+    float *C, const int Coffset, float **Carray,
+    int groups) {
+  for (int g = 0; g < groups; g++){
+    Aarray[g] = A + Aoffset*g;
+    Barray[g] = B + Boffset*g;
+    Carray[g] = C + Coffset*g;
+  }
+}
+
+template <>
+__global__ void batch_grouparraysetup_kernel<double>(
+    const double *A, const int Aoffset, const double **Aarray,
+    const double *B, const int Boffset, const double **Barray,
+    double *C, const int Coffset, double **Carray,
+    int groups) {
+  for (int g = 0; g < groups; g++){
+    Aarray[g] = A + Aoffset*g;
+    Barray[g] = B + Boffset*g;
+    Carray[g] = C + Coffset*g;
+  }
+}
+
+template <>
+void caffe_gpu_gemm_grouped<float>(const CBLAS_TRANSPOSE TransA,
+    const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
+    const float alpha,
+    const float* A, const int Aoffset, const float** Aarray,
+    const float* B, const int Boffset, const float** Barray,
+    const float beta,
+    float* C, const int Coffset, float** Carray,
+    const int groups) {
+  // Note that cublas follows fortran order.
+  int lda = (TransA == CblasNoTrans) ? K : M;
+  int ldb = (TransB == CblasNoTrans) ? N : K;
+  cublasOperation_t cuTransA =
+      (TransA == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+  cublasOperation_t cuTransB =
+      (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  batch_grouparraysetup_kernel<float><<<1, 1>>>(
+      B, Boffset, Barray,
+      A, Aoffset, Aarray,
+      C, Coffset, Carray,
+      groups);
+
+  CUBLAS_CHECK(cublasSgemmBatched(Caffe::cublas_handle(), cuTransB, cuTransA,
+      N, M, K, &alpha, Barray, ldb, Aarray, lda, &beta, Carray, N, groups));
+}
+
+template <>
+void caffe_gpu_gemm_grouped<double>(const CBLAS_TRANSPOSE TransA,
+    const CBLAS_TRANSPOSE TransB, const int M, const int N, const int K,
+    const double alpha,
+    const double* A, const int Aoffset, const double **Aarray,
+    const double* B, const int Boffset, const double **Barray,
+    const double beta,
+    double* C, const int Coffset, double **Carray,
+    const int groups) {
+  // Note that cublas follows fortran order.
+  int lda = (TransA == CblasNoTrans) ? K : M;
+  int ldb = (TransB == CblasNoTrans) ? N : K;
+  cublasOperation_t cuTransA =
+      (TransA == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+  cublasOperation_t cuTransB =
+      (TransB == CblasNoTrans) ? CUBLAS_OP_N : CUBLAS_OP_T;
+
+  // NOLINT_NEXT_LINE(whitespace/operators)
+  batch_grouparraysetup_kernel<double><<<1, 1>>>(
+        B, Boffset, Barray,
+        A, Aoffset, Aarray,
+        C, Coffset, Carray,
+        groups);
+
+  CUBLAS_CHECK(cublasDgemmBatched(Caffe::cublas_handle(), cuTransB, cuTransA,
+      N, M, K, &alpha, Barray, ldb, Aarray, lda, &beta, Carray, N, groups));
 }
 
 template <>
