@@ -372,4 +372,20 @@ void caffe_cpu_scale<double>(const int n, const double alpha, const double *x,
   cblas_dscal(n, alpha, y, 1);
 }
 
+template <>
+void caffe_cpu_linalg_qr<float>(const int M, const int N, float* A, float* B) {
+  lapack_int lda, info;
+  lda = N;
+  info = LAPACKE_sgeqrf(LAPACK_COL_MAJOR, M, N, A, lda, B);
+  CHECK_EQ(0, info);
+}
+
+template <>
+void caffe_cpu_linalg_qr<double>(const int M, const int N, double* A, double* B) {
+  lapack_int lda, info;
+  lda = N;
+  info = LAPACKE_dgeqrf(LAPACK_COL_MAJOR, M, N, A, lda, B);
+  CHECK_EQ(0, info);
+}
+
 }  // namespace caffe
