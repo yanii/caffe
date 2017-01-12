@@ -32,6 +32,7 @@ void classname<Dtype>::funcname##_##gpu(const vector<Blob<Dtype>*>& top, \
 #else  // Normal GPU + CPU Caffe.
 
 #include <cublas_v2.h>
+#include <cusolverDn.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <curand.h>
@@ -66,6 +67,13 @@ void classname<Dtype>::funcname##_##gpu(const vector<Blob<Dtype>*>& top, \
       << caffe::curandGetErrorString(status); \
   } while (0)
 
+#define CUSOLVER_CHECK(condition) \
+  do { \
+    cusolverStatus_t status = condition; \
+    CHECK_EQ(status, CUSOLVER_STATUS_SUCCESS) << " " \
+      << caffe::cusolverGetErrorString(status); \
+  } while (0)
+
 // CUDA: grid stride looping
 #define CUDA_KERNEL_LOOP(i, n) \
   for (int i = blockIdx.x * blockDim.x + threadIdx.x; \
@@ -79,6 +87,7 @@ namespace caffe {
 
 // CUDA: library error reporting.
 const char* cublasGetErrorString(cublasStatus_t error);
+const char* cusolverGetErrorString(cusolverStatus_t error);
 const char* curandGetErrorString(curandStatus_t error);
 
 // CUDA: use 512 threads per block

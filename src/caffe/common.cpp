@@ -105,12 +105,15 @@ void* Caffe::RNG::generator() {
 #else  // Normal GPU + CPU Caffe.
 
 Caffe::Caffe()
-    : cublas_handle_(NULL), curand_generator_(NULL), random_generator_(),
+    : cublas_handle_(NULL), cusolver_handle(NULL), curand_generator_(NULL), random_generator_(),
     mode_(Caffe::CPU), solver_count_(1), root_solver_(true) {
   // Try to create a cublas handler, and report an error if failed (but we will
   // keep the program running as one might just want to run CPU code).
   if (cublasCreate(&cublas_handle_) != CUBLAS_STATUS_SUCCESS) {
     LOG(ERROR) << "Cannot create Cublas handle. Cublas won't be available.";
+  }
+  if (cusolverCreate(&cusolver_handle_) != CUSOLVER_STATUS_SUCCESS) {
+    LOG(ERROR) << "Cannot create Cusolver handle. Cusolver won't be available.";
   }
   // Try to create a curand handler.
   if (curandCreateGenerator(&curand_generator_, CURAND_RNG_PSEUDO_DEFAULT)
@@ -123,6 +126,7 @@ Caffe::Caffe()
 
 Caffe::~Caffe() {
   if (cublas_handle_) CUBLAS_CHECK(cublasDestroy(cublas_handle_));
+  if (cusolver_handle_) CUBLAS_CHECK(cusolverDestroy(cusolver_handle_));
   if (curand_generator_) {
     CURAND_CHECK(curandDestroyGenerator(curand_generator_));
   }
@@ -156,6 +160,7 @@ void Caffe::SetDevice(const int device_id) {
   // may perform initialization using the GPU.
   CUDA_CHECK(cudaSetDevice(device_id));
   if (Get().cublas_handle_) CUBLAS_CHECK(cublasDestroy(Get().cublas_handle_));
+  if (Get().cusolver_handle_) CUSOLVER_CHECK(cusolverDestroy(Get().cusolver_handle_));
   if (Get().curand_generator_) {
     CURAND_CHECK(curandDestroyGenerator(Get().curand_generator_));
   }
@@ -285,6 +290,47 @@ const char* cublasGetErrorString(cublasStatus_t error) {
 #endif
   }
   return "Unknown cublas status";
+}
+
+const char* cusolverGetErrorString(cusolverStatus_t error) {
+  switch (error) {
+  case CUSOLVER_STATUS_SUCCESS:
+    return "CUSOLVER_STATUS_SUCCESS";
+  }
+  case CUSOLVER_STATUS_NOT_INITIALIZED:
+    return "CUSOLVER_STATUS_NOT_INITIALIZED";
+  }
+  case CUSOLVER_STATUS_ALLOC_FAILED:
+    return "CUSOLVER_STATUS_ALLOC_FAILED";
+  }
+  case CUSOLVER_STATUS_INVALID_VALUE:
+    return "CUSOLVER_STATUS_INVALID_VALUE";
+  }
+  case CUSOLVER_STATUS_ARCH_MISMATCH:
+    return "CUSOLVER_STATUS_ARCH_MISMATCH";
+  }
+  case CUSOLVER_STATUS_MAPPING_ERROR:
+    return "CUSOLVER_STATUS_MAPPING_ERROR";
+  }
+  case CUSOLVER_STATUS_EXECUTION_FAILED:
+    return "CUSOLVER_STATUS_EXECUTION_FAILED";
+  }
+  case CUSOLVER_STATUS_INTERNAL_ERROR:
+    return "CUSOLVER_STATUS_INTERNAL_ERROR";
+  }
+  case CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
+    return "CUSOLVER_STATUS_MATRIX_TYPE_NOT_SUPPORTED";
+  }
+  case CUSOLVER_STATUS_NOT_SUPPORTED:
+    return "CUSOLVER_STATUS_NOT_SUPPORTED";
+  }
+  case CUSOLVER_STATUS_ZERO_PIVOT:
+    return "CUSOLVER_STATUS_ZERO_PIVOT";
+  }
+  case :
+    return "CUSOLVER_STATUS_INVALID_LICENSE";
+  }
+  return "Unknown cusolver status";
 }
 
 const char* curandGetErrorString(curandStatus_t error) {

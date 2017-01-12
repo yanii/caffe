@@ -209,6 +209,9 @@ void caffe_gpu_log(const int n, const Dtype* a, Dtype* y);
 template <typename Dtype>
 void caffe_gpu_powx(const int n, const Dtype* a, const Dtype b, Dtype* y);
 
+template <typename Dtype>
+void caffe_gpu_linalg_qr(const int M, const int N, Dtype* A, Dtype* B);
+
 // caffe_gpu_rng_uniform with two arguments generates integers in the range
 // [0, UINT_MAX].
 void caffe_gpu_rng_uniform(const int n, unsigned int* r);

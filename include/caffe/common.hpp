@@ -133,6 +133,7 @@ class Caffe {
   }
 #ifndef CPU_ONLY
   inline static cublasHandle_t cublas_handle() { return Get().cublas_handle_; }
+  inline static cusolverDnHandle_t cusolver_handle() { return Get().cusolver_handle_; }
   inline static curandGenerator_t curand_generator() {
     return Get().curand_generator_;
   }
@@ -167,6 +168,7 @@ class Caffe {
  protected:
 #ifndef CPU_ONLY
   cublasHandle_t cublas_handle_;
+  cusolverDnHandle_t cusolver_handle_;
   curandGenerator_t curand_generator_;
 #endif
   shared_ptr<RNG> random_generator_;
