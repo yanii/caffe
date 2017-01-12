@@ -232,7 +232,7 @@ endfunction()
 ################################################################################################
 
 find_package(CUDA 5.5 QUIET)
-find_cuda_helper_libs(curand)  # cmake 2.8.7 compartibility which doesn't search for curand
+find_cuda_helper_libs(curand cusolver)  # cmake 2.8.7 compartibility which doesn't search for curand
 
 if(NOT CUDA_FOUND)
   return()
@@ -241,7 +241,7 @@ endif()
 set(HAVE_CUDA TRUE)
 message(STATUS "CUDA detected: " ${CUDA_VERSION})
 include_directories(SYSTEM ${CUDA_INCLUDE_DIRS})
-list(APPEND Caffe_LINKER_LIBS ${CUDA_CUDART_LIBRARY}
+list(APPEND Caffe_LINKER_LIBS ${CUDA_CUDART_LIBRARY} ${CUDA_cusolver_LIBRARY}
                               ${CUDA_curand_LIBRARY} ${CUDA_CUBLAS_LIBRARIES})
 
 # cudnn detection
