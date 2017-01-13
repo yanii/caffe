@@ -371,20 +371,34 @@ template <>
 void caffe_gpu_linalg_qr<float>(const int M, const int N, float* A, float* B) {
   //TODO is it this or M?
   int lda = N;
-  // Create working memory
+
+  // Create working memory for QR factorization
   float *d_work;
-  int lwork = 0;
-  CUSOLVER_CHECK(cusolverDnSgeqrf_bufferSize(Caffe::cusolver_handle(), M, N, A, lda, &lwork));
+  int lwork_geqrf, lwork_orgqr;
+  // Calculate working memory size requirement for geqrf
+  CUSOLVER_CHECK(cusolverDnSgeqrf_bufferSize(Caffe::cusolver_handle(), M, N, A, lda, &lwork_geqrf));
+  // Calculate working memory size requirement for orgqr
+  CUSOLVER_CHECK(cusolverDnSorgqr_bufferSize(Caffe::cusolver_handle(), M, N, N, A, lda, B, &lwork_orgqr));
+  // Use maximum of the working memory requirements
+  int lwork = (lwork_geqrf > lwork_orgqr)? lwork_geqrf : lwork_orgqr;
   CUDA_CHECK(cudaMalloc((void**)&d_work, sizeof(double)*lwork));
 
   int *devInfo = NULL;
   CUDA_CHECK(cudaMalloc ((void**)&devInfo, sizeof(int)));
-  // Solve
+  // QR Factorization (geqrf)
   CUSOLVER_CHECK(cusolverDnSgeqrf(Caffe::cusolver_handle(), M, N, A, lda, B, d_work, lwork, devInfo));
   CUDA_CHECK(cudaDeviceSynchronize());
 
-  // check if QR is good or not 
+  // Check if QR is good or not 
   int info_gpu = 0;
+  CUDA_CHECK(cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost));
+  assert(0 == info_gpu);
+
+  // QR Calculation (orgqr)
+  CUSOLVER_CHECK(cusolverDnSorgqr(Caffe::cusolver_handle(), M, N, N, A, lda, B, d_work, lwork, devInfo));
+  CUDA_CHECK(cudaDeviceSynchronize());
+
+  // Check if Q is good or not 
   CUDA_CHECK(cudaMemcpy(&info_gpu, devInfo, sizeof(int), cudaMemcpyDeviceToHost));
   assert(0 == info_gpu);
 
