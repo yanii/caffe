@@ -36,6 +36,9 @@ void DropprojectLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
 //#else
 //  caffe_gpu_linalg_qr(count, count, rand_rot_.mutable_gpu_data(), rwork.data());
 //#endif
+  // TODO 
+  // if numpy.linalg.det(self.rotation) < 0:
+  //              self.rotation[:, 0] = -self.rotation[:, 0]
 }
 
 template <typename Dtype>
@@ -44,22 +47,29 @@ void DropprojectLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   unsigned int* mask = rand_vec_.mutable_cpu_data();
-  Dtype* rotation = rand_rot_.mutable_cpu_data();
+  const Dtype* rotation = rand_rot_.cpu_data();
   const int count = bottom[0]->count();
 
   // Rotate parameter space
-  // TODO
+  // TODO xp.dot(self.rotation.T, xp.dot(self.rotation, x[0].T) * self.mask.T).T,
+  /*caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans,
+      M_, N_, K_, (Dtype)1.,
+      bottom_data, rotation, (Dtype)0., top_data);*/
+
   if (this->phase_ == TRAIN) {
     // Create random numbers
     caffe_rng_bernoulli(count, 1. - threshold_, mask);
     for (int i = 0; i < count; ++i) {
-      top_data[i] = bottom_data[i] * mask[i] * scale_;
+      top_data[i] = top_data[i] * mask[i] * scale_;
     }
   } else {
     caffe_copy(bottom[0]->count(), bottom_data, top_data);
   }
   // Rotate parameter space back
-  // TODO
+  // return xp.dot(self.rotation.T, xp.dot(self.rotation, gy[0].T) * self.mask.T).T,
+  /*caffe_cpu_gemm<Dtype>(CblasNoTrans, CblasTrans,
+      M_, N_, K_, (Dtype)1.,
+      bottom_data, rotation, (Dtype)0., top_data);*/
 }
 
 template <typename Dtype>
