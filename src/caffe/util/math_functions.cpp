@@ -378,6 +378,9 @@ void caffe_cpu_linalg_qr<float>(const int M, const int N, float* A, float* B) {
   lda = N;
   info = LAPACKE_sgeqrf(LAPACK_COL_MAJOR, M, N, A, lda, B);
   CHECK_EQ(0, info);
+  
+  info = LAPACKE_sorgqr(LAPACK_COL_MAJOR, M, N, N, A, lda, B);
+  CHECK_EQ(0, info);
 }
 
 template <>
@@ -385,6 +388,9 @@ void caffe_cpu_linalg_qr<double>(const int M, const int N, double* A, double* B)
   lapack_int lda, info;
   lda = N;
   info = LAPACKE_dgeqrf(LAPACK_COL_MAJOR, M, N, A, lda, B);
+  CHECK_EQ(0, info);
+
+  info = LAPACKE_dorgqr(LAPACK_COL_MAJOR, M, N, N, A, lda, B);
   CHECK_EQ(0, info);
 }
 
