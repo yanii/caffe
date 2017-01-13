@@ -27,14 +27,15 @@ void DropprojectLayer<Dtype>::Reshape(const vector<Blob<Dtype>*>& bottom,
   // ReshapeLike does not work because rand_vec_ is of Dtype uint
   rand_vec_.Reshape(bottom[0]->shape());
   // Rotation vector is square of number of number of parameters in bottom
-  rand_rot_.Reshape(count*count]);
-  caffe_rng_uniform(count*count, 0, 1, rotation);
+  rand_rot_.Reshape(1, 1, count, count);
+  caffe_rng_uniform(count*count, (Dtype) 0., (Dtype) 1., rand_rot_.mutable_cpu_data());
   // Calculate rotation matrix using QR factorization
-#ifdef CPU_ONLY
-  
-#else
-  caffe_gpu_linalg_qr(count, count, float* A, float* B)
-#endif
+  vector<Dtype> rwork(count*count);
+//#ifdef CPU_ONLY
+  caffe_cpu_linalg_qr(count, count, rand_rot_.mutable_cpu_data(), rwork.data());
+//#else
+//  caffe_gpu_linalg_qr(count, count, rand_rot_.mutable_gpu_data(), rwork.data());
+//#endif
 }
 
 template <typename Dtype>
@@ -43,8 +44,11 @@ void DropprojectLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   const Dtype* bottom_data = bottom[0]->cpu_data();
   Dtype* top_data = top[0]->mutable_cpu_data();
   unsigned int* mask = rand_vec_.mutable_cpu_data();
-  unsigned Dtype* rotation = rand_rot_.mutable_cpu_data();
+  Dtype* rotation = rand_rot_.mutable_cpu_data();
   const int count = bottom[0]->count();
+
+  // Rotate parameter space
+  // TODO
   if (this->phase_ == TRAIN) {
     // Create random numbers
     caffe_rng_bernoulli(count, 1. - threshold_, mask);
@@ -54,6 +58,8 @@ void DropprojectLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom,
   } else {
     caffe_copy(bottom[0]->count(), bottom_data, top_data);
   }
+  // Rotate parameter space back
+  // TODO
 }
 
 template <typename Dtype>
